@@ -4,12 +4,13 @@ import re
 import time
 import json
 import os
+import sys
 from collections import deque
 from ingest import ingest_fighter
 
 
 CHECKPOINT_FILE = "checkpoint.json"
-CHECKPOINT_INTERVAL = 50  # Save state every 50 fighters
+CHECKPOINT_INTERVAL = 1  # Save state every fighter
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -224,7 +225,7 @@ def crawl_fighters(seed_id, seed_slug, max_fighters=None):
             save_checkpoint(visited, queue, all_fighters)
         
         # Be polite to Sherdog's servers
-        time.sleep(1.5) # Adjust as needed to avoid rate limits
+        #time.sleep(.2) # removing for now due to natural delays from data parsing
     
     # Save final checkpoint when done
     save_checkpoint(visited, queue, all_fighters)
@@ -233,15 +234,9 @@ def crawl_fighters(seed_id, seed_slug, max_fighters=None):
 
 
 if __name__ == "__main__":
-    # Test single fighter
-    # result = scrape_fighter("76836", "Islam-Makhachev")
-    # if result:
-    #    print(f"\nFighter: {result['name']} (ID: {result['id']})")
-    #    print(f"Total fights scraped: {len(result['fights'])}")
-    #    print("\nFight history:")
-    #    for fight in result["fights"]:
-    #        print(f"  {fight['result'].upper()} vs {fight['opponent_name']} | {fight['event_name']} | {fight['event_date']} | {fight['method']}")
-    session_max = 5
+
+    session_max = int(sys.argv[1]) if len(sys.argv) > 1 else 10  # Default to 10 fighters 
+
     # Test crawl with a small cap first
     print("Starting crawl from Islam Makhachev...")
     fighters = crawl_fighters("76836", "Islam-Makhachev", max_fighters=session_max)
