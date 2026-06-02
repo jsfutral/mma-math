@@ -2,6 +2,14 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import time
+import json
+import os
+from collections import deque
+from ingest import ingest_fighter
+
+
+CHECKPOINT_FILE = "checkpoint.json"
+CHECKPOINT_INTERVAL = 50  # Save state every 50 fighters
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -72,9 +80,22 @@ def scrape_fighter(fighter_id, fighter_slug):
         opponent_tag = cells[1].find("a")
         if not opponent_tag:
             continue
+
+        href = opponent_tag.get("href", "")
+
+        # Skip if this isn't a fighter link
+        if "/fighter/" not in href:
+            continue
+
         opponent_name = opponent_tag.text.strip()
-        opponent_id = get_sherdog_id(opponent_tag["href"])
-        opponent_slug = opponent_tag["href"].split("/fighter/")[1].rsplit("-", 1)[0]
+        opponent_id = get_sherdog_id(href)
+
+        # Guard against unexpected URL formats
+        try:
+            opponent_slug = opponent_tag["href"].split("/fighter/")[1].rsplit("-", 1)[0]
+        except IndexError:
+            print(f"Unexpected href format: {href}, skipping")
+            continue
         
         # Event and date
         event_tag = cells[2].find("span", itemprop="award")
@@ -109,13 +130,122 @@ def scrape_fighter(fighter_id, fighter_slug):
     }
 
 
-# --- Quick test ---
-if __name__ == "__main__":
-    result = scrape_fighter("76836", "Islam-Makhachev")
+def save_checkpoint(visited, queue, all_fighters):
+    """Save crawler state to disk so we can resume if interrupted."""
+    state = {
+        "visited": list(visited),
+        "queue": list(queue),
+        "all_fighters": all_fighters
+    }
+    with open(CHECKPOINT_FILE, "w") as f:
+        json.dump(state, f)
+    print(f"Checkpoint saved — {len(visited)} fighters scraped, {len(queue)} in queue")
+
+
+def load_checkpoint():
+    """Load crawler state from disk if a checkpoint exists."""
+    if not os.path.exists(CHECKPOINT_FILE):
+        return None
+    with open(CHECKPOINT_FILE, "r") as f:
+        state = json.load(f)
+    print(f"Resuming from checkpoint — {len(state['visited'])} fighters already scraped, {len(state['queue'])} in queue")
+    return state
+
+
+def crawl_fighters(seed_id, seed_slug, max_fighters=None):
+    """
+    BFS crawl starting from a seed fighter, following opponent links
+    to discover and scrape the entire fight graph.
+    Saves checkpoints periodically so crawl can be resumed if interrupted.
     
-    if result:
-        print(f"\nFighter: {result['name']} (ID: {result['id']})")
-        print(f"Total fights scraped: {len(result['fights'])}")
-        print("\nFight history:")
-        for fight in result["fights"]:
-            print(f"  {fight['result'].upper()} vs {fight['opponent_name']} | {fight['event_name']} | {fight['event_date']} | {fight['method']}")
+    Args:
+        seed_id: Sherdog ID of the starting fighter
+        seed_slug: Sherdog URL slug of the starting fighter
+        max_fighters: optional cap for testing (None = crawl everything)
+    
+    Returns:
+        dict of all scraped fighters keyed by Sherdog ID
+    """
+    # Try to resume from checkpoint first
+    checkpoint = load_checkpoint()
+    
+    if checkpoint:
+        visited = set(checkpoint["visited"])
+        queue = deque(checkpoint["queue"])
+        all_fighters = checkpoint["all_fighters"]
+    else:
+        visited = set()
+        queue = deque()
+        queue.append((seed_id, seed_slug))
+        all_fighters = {}
+    
+    # Track fighters scraped this session only
+    newly_scraped = 0
+
+
+    while queue:
+        # Stop early if we hit the cap (useful for testing)
+        # Cap applies to this session only, not total visited
+        if max_fighters and newly_scraped >= max_fighters:
+            print(f"\nReached max_fighters cap of {max_fighters} for this session, stopping.")
+            break
+        
+        fighter_id, fighter_slug = queue.popleft()
+        
+        # Skip if already scraped
+        if fighter_id in visited:
+            continue
+        
+        visited.add(fighter_id)
+        
+        # Scrape this fighter
+        fighter_data = scrape_fighter(fighter_id, fighter_slug)
+        
+        if not fighter_data:
+            continue
+
+        all_fighters[fighter_id] = fighter_data
+        ingest_fighter(fighter_data)
+        
+        newly_scraped += 1
+
+        print(f"Session: {newly_scraped} | Total: {len(visited)} | Queue: {len(queue)}")
+        
+        # Add all opponents we haven't seen yet to the queue
+        for fight in fighter_data["fights"]:
+            opponent_id = fight["opponent_id"]
+            opponent_slug = fight["opponent_slug"]
+            
+            if opponent_id and opponent_id not in visited:
+                queue.append((opponent_id, opponent_slug))
+        
+        # Save checkpoint every N fighters
+        if len(visited) % CHECKPOINT_INTERVAL == 0:
+            save_checkpoint(visited, queue, all_fighters)
+        
+        # Be polite to Sherdog's servers
+        time.sleep(1.5) # Adjust as needed to avoid rate limits
+    
+    # Save final checkpoint when done
+    save_checkpoint(visited, queue, all_fighters)
+    
+    return all_fighters
+
+
+if __name__ == "__main__":
+    # Test single fighter
+    # result = scrape_fighter("76836", "Islam-Makhachev")
+    # if result:
+    #    print(f"\nFighter: {result['name']} (ID: {result['id']})")
+    #    print(f"Total fights scraped: {len(result['fights'])}")
+    #    print("\nFight history:")
+    #    for fight in result["fights"]:
+    #        print(f"  {fight['result'].upper()} vs {fight['opponent_name']} | {fight['event_name']} | {fight['event_date']} | {fight['method']}")
+    session_max = 5
+    # Test crawl with a small cap first
+    print("Starting crawl from Islam Makhachev...")
+    fighters = crawl_fighters("76836", "Islam-Makhachev", max_fighters=session_max)
+    
+    print(f"\nCrawl complete! Total fighters scraped: {len(fighters)}")
+    for fid, fdata in list(fighters.items())[-session_max:]:
+        print(f"  {fdata['name']} (ID: {fid}) — {len(fdata['fights'])} fights")
