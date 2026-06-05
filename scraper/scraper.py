@@ -10,7 +10,7 @@ from ingest import ingest_fighter
 
 
 CHECKPOINT_FILE = "checkpoint.json"
-CHECKPOINT_INTERVAL = 1  # Save state every fighter
+CHECKPOINT_INTERVAL = 100  # Save state every 100 fighters
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
