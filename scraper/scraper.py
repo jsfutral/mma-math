@@ -131,12 +131,11 @@ def scrape_fighter(fighter_id, fighter_slug):
     }
 
 
-def save_checkpoint(visited, queue, all_fighters):
+def save_checkpoint(visited, queue):
     """Save crawler state to disk so we can resume if interrupted."""
     state = {
         "visited": list(visited),
-        "queue": list(queue),
-        "all_fighters": all_fighters
+        "queue": list(queue)
     }
     with open(CHECKPOINT_FILE, "w") as f:
         json.dump(state, f)
@@ -173,12 +172,10 @@ def crawl_fighters(seed_id, seed_slug, max_fighters=None):
     if checkpoint:
         visited = set(checkpoint["visited"])
         queue = deque(checkpoint["queue"])
-        all_fighters = checkpoint["all_fighters"]
     else:
         visited = set()
         queue = deque()
         queue.append((seed_id, seed_slug))
-        all_fighters = {}
     
     # Track fighters scraped this session only
     newly_scraped = 0
@@ -205,7 +202,6 @@ def crawl_fighters(seed_id, seed_slug, max_fighters=None):
         if not fighter_data:
             continue
 
-        all_fighters[fighter_id] = fighter_data
         ingest_fighter(fighter_data)
         
         newly_scraped += 1
@@ -222,15 +218,15 @@ def crawl_fighters(seed_id, seed_slug, max_fighters=None):
         
         # Save checkpoint every N fighters
         if len(visited) % CHECKPOINT_INTERVAL == 0:
-            save_checkpoint(visited, queue, all_fighters)
+            save_checkpoint(visited, queue)
         
         # Be polite to Sherdog's servers
         #time.sleep(.2) # removing for now due to natural delays from data parsing
     
     # Save final checkpoint when done
-    save_checkpoint(visited, queue, all_fighters)
+    save_checkpoint(visited, queue)
     
-    return all_fighters
+    return newly_scraped, len(visited), len(queue)
 
 
 if __name__ == "__main__":
@@ -239,8 +235,9 @@ if __name__ == "__main__":
 
     # Test crawl with a small cap first
     print("Starting crawl from Islam Makhachev...")
-    fighters = crawl_fighters("76836", "Islam-Makhachev", max_fighters=session_max)
-    
-    print(f"\nCrawl complete! Total fighters scraped: {len(fighters)}")
-    for fid, fdata in list(fighters.items())[-session_max:]:
-        print(f"  {fdata['name']} (ID: {fid}) — {len(fdata['fights'])} fights")
+    newly, total, remaining = crawl_fighters("76836", "Islam-Makhachev", max_fighters=session_max)
+
+    print(f"\nCrawl complete!")
+    print(f"  Fighters scraped this session: {newly}")
+    print(f"  Total fighters in database: {total}")
+    print(f"  Remaining in queue: {remaining}")
