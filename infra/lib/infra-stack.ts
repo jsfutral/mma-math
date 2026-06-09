@@ -43,6 +43,17 @@ export class InfraStack extends cdk.Stack {
     });
 
     // -----------------------------------------------
+    // S3 Bucket (React frontend)
+    // -----------------------------------------------
+
+    const siteBucket = new s3.Bucket(this, 'SiteBucket', {
+      bucketName: `mma-math-frontend-${this.account}`,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // -----------------------------------------------
     // Lambda Functions
     // -----------------------------------------------
 
@@ -60,6 +71,7 @@ export class InfraStack extends cdk.Stack {
         FIGHTERS_TABLE: fightersTable.tableName,
         FIGHTS_TABLE: fightsTable.tableName,
         CACHE_TABLE: cacheTable.tableName,
+        GRAPH_BUCKET: siteBucket.bucketName,
       },
     });
 
@@ -84,6 +96,9 @@ export class InfraStack extends cdk.Stack {
     cacheTable.grantReadWriteData(chainLambda);
     fightersTable.grantReadData(searchLambda);
 
+    // Grant chain Lambda read access to S3 graph file
+    siteBucket.grantRead(chainLambda);
+    
     // -----------------------------------------------
     // API Gateway
     // -----------------------------------------------
@@ -104,17 +119,6 @@ export class InfraStack extends cdk.Stack {
     const fightersResource = api.root.addResource('fighters');
     const searchResource = fightersResource.addResource('search');
     searchResource.addMethod('GET', new apigateway.LambdaIntegration(searchLambda));
-
-    // -----------------------------------------------
-    // S3 Bucket (React frontend)
-    // -----------------------------------------------
-
-    const siteBucket = new s3.Bucket(this, 'SiteBucket', {
-      bucketName: `mma-math-frontend-${this.account}`,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-    });
 
     // -----------------------------------------------
     // CloudFront Distribution
