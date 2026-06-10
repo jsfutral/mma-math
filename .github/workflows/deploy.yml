@@ -46,8 +46,20 @@ jobs:
         run: cd infra && npx cdk deploy --require-approval never
 
       - name: Upload frontend to S3
-        run: |
-          aws s3 sync client/dist/ s3://${{ secrets.S3_BUCKET }} --delete
+        run: aws s3 sync client/dist/ s3://${{ secrets.S3_BUCKET }} --delete
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: cd scraper && pip install -r requirements.txt
+
+      - name: Export fight graph to S3
+        run: cd scraper && python3 export_graph.py
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
 
       - name: Invalidate CloudFront cache
         run: |
