@@ -160,7 +160,7 @@ export default function App() {
           onClick={findChain}
           disabled={!fighterA || !fighterB || loading}
         >
-          {loading ? "Finding chain..." : "Find Chain"}
+          {loading ? "Calculating..." : "Find Chain"}
         </button>
       </div>
 
