@@ -1,75 +1,41 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
-const client = new DynamoDBClient({ region: "us-east-1" });
-const docClient = DynamoDBDocumentClient.from(client);
+const s3Client = new S3Client({ region: "us-east-1" });
 
-const FIGHTS_TABLE = process.env.FIGHTS_TABLE || "mma-math-fights";
-const FIGHTERS_TABLE = process.env.FIGHTERS_TABLE || "mma-math-fighters";
-
-export interface Fighter {
-  id: string;
-  name: string;
-}
+const GRAPH_BUCKET = process.env.GRAPH_BUCKET || "mma-math-frontend-355986452584";
+const GRAPH_KEY = "graph/fight-graph.json";
 
 export interface FightGraph {
-  // adjacency list: winnerId -> array of loserIds
   edges: Map<string, string[]>;
-  // fighter lookup: id -> name
   fighters: Map<string, string>;
 }
 
-async function scanTable(tableName: string): Promise<any[]> {
-  const items: any[] = [];
-  let lastEvaluatedKey: Record<string, any> | undefined;
-
-  // DynamoDB scan is paginated - keep scanning until no more pages
-  do {
-    const response = await docClient.send(new ScanCommand({
-      TableName: tableName,
-      ExclusiveStartKey: lastEvaluatedKey,
-    }));
-
-    if (response.Items) {
-      items.push(...response.Items);
-    }
-
-    lastEvaluatedKey = response.LastEvaluatedKey;
-
-    console.log(`Scanned ${items.length} items from ${tableName}...`);
-
-  } while (lastEvaluatedKey);
-
-  return items;
+async function streamToString(stream: any): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf-8");
 }
 
 export async function buildGraph(): Promise<FightGraph> {
-  console.log("Building fight graph from DynamoDB...");
+  console.log(`Loading graph from s3://${GRAPH_BUCKET}/${GRAPH_KEY}...`);
+  const start = Date.now();
 
-  const [fights, fighters] = await Promise.all([
-    scanTable(FIGHTS_TABLE),
-    scanTable(FIGHTERS_TABLE),
-  ]);
+  const response = await s3Client.send(new GetObjectCommand({
+    Bucket: GRAPH_BUCKET,
+    Key: GRAPH_KEY,
+  }));
 
-  // Build fighter name lookup
-  const fighterMap = new Map<string, string>();
-  for (const fighter of fighters) {
-    fighterMap.set(fighter.id, fighter.name);
-  }
+  const json = await streamToString(response.Body);
+  const data = JSON.parse(json);
 
-  // Build adjacency list
-  const edges = new Map<string, string[]>();
-  for (const fight of fights) {
-    const { winnerId, loserId } = fight;
-    if (!winnerId || !loserId) continue;
+  // Convert plain objects back to Maps
+  const fighters = new Map<string, string>(Object.entries(data.fighters));
+  const edges = new Map<string, string[]>(Object.entries(data.edges));
 
-    if (!edges.has(winnerId)) {
-      edges.set(winnerId, []);
-    }
-    edges.get(winnerId)!.push(loserId);
-  }
+  const elapsed = Date.now() - start;
+  console.log(`Graph loaded in ${elapsed}ms — ${fighters.size} fighters, ${edges.size} fighters with wins`);
 
-  console.log(`Graph built — ${fighterMap.size} fighters, ${fights.length} edges`);
-
-  return { edges, fighters: fighterMap };
+  return { edges, fighters };
 }
