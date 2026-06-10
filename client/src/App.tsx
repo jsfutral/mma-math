@@ -88,10 +88,10 @@ export default function App() {
       {/* Header */}
       <div className="mb-10 text-center">
         <h1 className="text-5xl font-black tracking-tight text-white mb-2">
-          MMA <span className="text-red-500">MATH</span>
+          TI-<span className="text-red-500">MM84</span>
         </h1>
         <p className="text-gray-400 text-sm">
-          If A beats B and B beats C... you know the rest.
+          MMA Math Calculator
         </p>
       </div>
 
