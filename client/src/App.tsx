@@ -91,7 +91,7 @@ export default function App() {
           TI-<span className="text-red-500">MM84</span>
         </h1>
         <p className="text-gray-400 text-sm">
-          MMA Math Calculator
+          MMA Math Calculator - Does fighter A beat fighter B?
         </p>
       </div>
 
