@@ -87,6 +87,7 @@ export class InfraStack extends cdk.Stack {
       depsLockFilePath: '../server/package-lock.json',
      environment: {
         FIGHTERS_TABLE: fightersTable.tableName,
+        GRAPH_BUCKET: siteBucket.bucketName,
       },
     });
 
@@ -98,7 +99,8 @@ export class InfraStack extends cdk.Stack {
 
     // Grant chain Lambda read access to S3 graph file
     siteBucket.grantRead(chainLambda);
-    
+    siteBucket.grantRead(searchLambda);
+
     // -----------------------------------------------
     // API Gateway
     // -----------------------------------------------
