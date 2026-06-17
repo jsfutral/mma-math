@@ -21,38 +21,64 @@ def get_sherdog_id(href):
     return match.group(1) if match else None
 
 
-def extract_fighter(result_span):
+def extract_fighter_from_performer(performer):
     """
-    Given a span.final_result, walk up the DOM to find
-    the fighter's name and Sherdog URL.
+    Extract fighter info from an itemprop="performer" element.
+    Works for both main event (div.fighter) and undercard (td) structures.
     """
-    # Walk up to find the nearest ancestor with itemprop="url"
-    parent = result_span.parent
-    while parent:
-        link = parent.find("a", itemprop="url")
-        if link:
-            name_tag = link.find("span", itemprop="name")
-            name = name_tag.get_text(separator=" ").strip() if name_tag else link.text.strip()
-            href = link.get("href", "")
-            fighter_id = get_sherdog_id(href)
-            return {"id": fighter_id, "name": name, "href": href}
-        parent = parent.parent
-    return None
+    # Get fighter link for ID
+    link = performer.find("a", itemprop="url")
+    if not link:
+        return None
+
+    href = link.get("href", "")
+    if "/fighter/" not in href:
+        return None
+
+    fighter_id = get_sherdog_id(href)
+
+    # Get name from span[itemprop="name"] anywhere within performer
+    # Main event: name is in h3 > a > span[itemprop="name"]
+    # Undercard: name is in a[itemprop="url"] > span[itemprop="name"]
+    # Both have span[itemprop="name"] somewhere inside performer
+    name_tag = performer.find("span", itemprop="name")
+    if name_tag:
+        name = name_tag.get_text(separator=" ").strip()
+    else:
+        name = link.get_text(separator=" ").strip()
+
+    if not name or not fighter_id:
+        return None
+
+    # Get result
+    result_span = performer.find("span", class_="final_result")
+    result = result_span.text.strip().lower() if result_span else None
+
+    return {"id": fighter_id, "name": name, "result": result}
 
 
 def process_sub_event(sub_event):
     """
     Extract winner and loser from a subEvent element.
-    Works for both main event div and regular fight tr structures.
+    Uses itemprop="performer" containers which exist in both
+    main event and undercard HTML structures.
     """
-    win_span = sub_event.find("span", class_="final_result win")
-    loss_span = sub_event.find("span", class_="final_result loss")
+    performers = sub_event.find_all(attrs={"itemprop": "performer"})
 
-    if not win_span or not loss_span:
+    if len(performers) < 2:
         return None, None
 
-    winner = extract_fighter(win_span)
-    loser = extract_fighter(loss_span)
+    fighters = []
+    for performer in performers[:2]:
+        fighter = extract_fighter_from_performer(performer)
+        if fighter:
+            fighters.append(fighter)
+
+    if len(fighters) < 2:
+        return None, None
+
+    winner = next((f for f in fighters if f.get("result") == "win"), None)
+    loser = next((f for f in fighters if f.get("result") == "loss"), None)
 
     return winner, loser
 
