@@ -43,7 +43,7 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Install CDK CLI
-        run: npm install -g aws-cdk@2.259.0
+        run: npm install -g aws-cdk@2.1127.0
 
       - name: Deploy CDK stack
         run: cd infra && npx cdk deploy --require-approval never
