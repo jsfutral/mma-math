@@ -1,10 +1,10 @@
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { loadFighters, type FighterInfo } from "../graph/loadFighters";
+import { loadFighters } from "../graph/loadFighters";
 
 // Module scope - loaded once on cold start
-let fighters: Map<string, FighterInfo> | null = null;
+let fighters: Map<string, string> | null = null;
 
-async function getFighters(): Promise<Map<string, FighterInfo>> {
+async function getFighters(): Promise<Map<string, string>> {
   if (!fighters) {
     fighters = await loadFighters();
   }
@@ -26,15 +26,18 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const fighterMap = await getFighters();
 
     // Search fighters by name
-    const results: { id: string; name: string; fightCount: number }[] = [];
+    const results: { id: string; name: string }[] = [];
 
-    for (const [id, fighterInfo] of fighterMap) {
-      if (fighterInfo.name.toLowerCase().includes(query)) {
-        results.push({ id, name: fighterInfo.name, fightCount: fighterInfo.fightCount });
+    for (const [id, name] of fighterMap) {
+      if (name.toLowerCase().includes(query)) {
+        results.push({ id, name });
+        // Cap at 20 results
+        if (results.length >= 20) break;
       }
     }
 
-    results.sort((a, b) => b.fightCount - a.fightCount || a.name.localeCompare(b.name));
+    // Sort by name length — shorter names are usually more relevant
+    results.sort((a, b) => a.name.length - b.name.length);
 
     return {
       statusCode: 200,
@@ -42,7 +45,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify({ results: results.slice(0, 20) }),
+      body: JSON.stringify({ results }),
     };
 
   } catch (error) {
