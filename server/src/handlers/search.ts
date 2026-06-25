@@ -26,7 +26,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const graph = await getFighters();
 
     // Search fighters by name, prioritize by win count, and limit to 20 results
-    const results = Object.entries(graph.fighters)
+    const results = Array.from(graph.fighters.entries())
     .filter(([_, name]) => 
         (name as string).toLowerCase().includes(query.toLowerCase())
     )
