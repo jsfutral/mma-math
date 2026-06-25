@@ -115,6 +115,17 @@ export default function App() {
     }
   }
 
+  function swapFighters() {
+    setFighterA(fighterB);
+    setFighterB(fighterA);
+    setQueryA(fighterB?.name ?? "");
+    setQueryB(fighterA?.name ?? "");
+    setResultsA([]);
+    setResultsB([]);
+    setChain(null);
+    setError(null);
+  }
+
   async function findChain() {
     if (!fighterA || !fighterB) return;
     setLoading(true);
@@ -188,6 +199,17 @@ export default function App() {
               ))}
             </ul>
           )}
+        </div>
+
+        <div className="flex items-center justify-center">
+          <button
+            className="inline-flex items-center justify-center rounded-full border border-gray-700 bg-gray-900 px-4 py-2 text-xs uppercase tracking-[0.25em] text-gray-300 hover:border-gray-500 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            onClick={swapFighters}
+            disabled={!fighterA && !fighterB && !queryA && !queryB}
+          >
+            Swap
+          </button>
         </div>
 
         {/* Fighter B */}
