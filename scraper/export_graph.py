@@ -63,9 +63,13 @@ def build_and_export():
             edges[winner_id] = []
         edges[winner_id].append(loser_id)
 
+
+    win_counts = {fighter_id: len(opponents) for fighter_id, opponents in edges.items()}
+
     graph = {
         "fighters": fighter_map,
         "edges": edges,
+        "winCounts": win_counts,
         "metadata": {
             "fighter_count": len(fighter_map),
             "edge_count": len(fights),

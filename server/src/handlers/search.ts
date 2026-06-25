@@ -1,10 +1,10 @@
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { loadFighters } from "../graph/loadFighters";
+import { FighterGraph, loadFighters } from "../graph/loadFighters";
 
 // Module scope - loaded once on cold start
-let fighters: Map<string, string> | null = null;
+let fighters: FighterGraph | null = null;
 
-async function getFighters(): Promise<Map<string, string>> {
+async function getFighters(): Promise<FighterGraph> {
   if (!fighters) {
     fighters = await loadFighters();
   }
@@ -23,21 +23,20 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       };
     }
 
-    const fighterMap = await getFighters();
+    const graph = await getFighters();
 
-    // Search fighters by name
-    const results: { id: string; name: string }[] = [];
-
-    for (const [id, name] of fighterMap) {
-      if (name.toLowerCase().includes(query)) {
-        results.push({ id, name });
-        // Cap at 20 results
-        if (results.length >= 20) break;
-      }
-    }
-
-    // Sort by name length — shorter names are usually more relevant
-    results.sort((a, b) => a.name.length - b.name.length);
+    // Search fighters by name, prioritize by win count, and limit to 20 results
+    const results = Object.entries(graph.fighters)
+    .filter(([_, name]) => 
+        (name as string).toLowerCase().includes(query.toLowerCase())
+    )
+    .sort(([idA], [idB]) => {
+        const winsA = graph.winCounts[idA] ?? 0;
+        const winsB = graph.winCounts[idB] ?? 0;
+        return winsB - winsA; // descending
+    })
+    .slice(0, 20)
+    .map(([id, name]) => ({ id, name }));
 
     return {
       statusCode: 200,

@@ -10,6 +10,11 @@ export interface FighterEntry {
   name: string;
 }
 
+export interface FighterGraph {
+  fighters: Map<string, string>;
+  winCounts: Record<string, number>;
+}
+
 async function streamToString(stream: any): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
@@ -18,7 +23,7 @@ async function streamToString(stream: any): Promise<string> {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
-export async function loadFighters(): Promise<Map<string, string>> {
+export async function loadFighters(): Promise<FighterGraph> {
   console.log("Loading fighters from S3...");
   const start = Date.now();
 
@@ -31,9 +36,10 @@ export async function loadFighters(): Promise<Map<string, string>> {
   const data = JSON.parse(json);
 
   const fighters = new Map<string, string>(Object.entries(data.fighters));
+  const winCounts: Record<string, number> = data.winCounts || {};
 
   const elapsed = Date.now() - start;
   console.log(`Loaded ${fighters.size} fighters in ${elapsed}ms`);
 
-  return fighters;
+  return { fighters, winCounts };
 }
