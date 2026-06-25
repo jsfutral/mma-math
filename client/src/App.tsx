@@ -35,6 +35,9 @@ export default function App() {
   // Per-input monotonic IDs to ignore out-of-order responses
   const lastSearchIdA = useRef(0);
   const lastSearchIdB = useRef(0);
+  // AbortControllers to cancel previous requests
+  const abortControllerA = useRef(new AbortController());
+  const abortControllerB = useRef(new AbortController());
 
   async function searchFighters(query: string, which: "A" | "B") {
     if (query.length < 2) {
@@ -46,34 +49,52 @@ export default function App() {
     // Use per-input monotonic IDs to ignore out-of-order responses.
     // Increment the appropriate counter and capture the id for this request.
     if (which === "A") {
+      // Abort previous request
+      abortControllerA.current.abort();
+      abortControllerA.current = new AbortController();
+      
       lastSearchIdA.current += 1;
       const thisId = lastSearchIdA.current;
       setLoadingA(true);
       try {
-        const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`, {
+          signal: abortControllerA.current.signal,
+        });
         const data = await res.json();
         // Only apply results if this is the most recent request for this input
         if (thisId === lastSearchIdA.current) {
           setResultsA(data.results);
         }
       } catch (e) {
-        console.error("searchFighters A error:", e);
+        // Ignore abort errors; log other errors
+        if (e instanceof Error && e.name !== "AbortError") {
+          console.error("searchFighters A error:", e);
+        }
       } finally {
         // only stop loading if this is the latest request
         if (thisId === lastSearchIdA.current) setLoadingA(false);
       }
     } else {
+      // Abort previous request
+      abortControllerB.current.abort();
+      abortControllerB.current = new AbortController();
+      
       lastSearchIdB.current += 1;
       const thisId = lastSearchIdB.current;
       setLoadingB(true);
       try {
-        const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`, {
+          signal: abortControllerB.current.signal,
+        });
         const data = await res.json();
         if (thisId === lastSearchIdB.current) {
           setResultsB(data.results);
         }
       } catch (e) {
-        console.error("searchFighters B error:", e);
+        // Ignore abort errors; log other errors
+        if (e instanceof Error && e.name !== "AbortError") {
+          console.error("searchFighters B error:", e);
+        }
       } finally {
         if (thisId === lastSearchIdB.current) setLoadingB(false);
       }
