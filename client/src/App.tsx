@@ -27,6 +27,8 @@ export default function App() {
   const [queryB, setQueryB] = useState("");
   const [resultsA, setResultsA] = useState<Fighter[]>([]);
   const [resultsB, setResultsB] = useState<Fighter[]>([]);
+  const [loadingA, setLoadingA] = useState(false);
+  const [loadingB, setLoadingB] = useState(false);
   const [chain, setChain] = useState<ChainResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export default function App() {
   async function searchFighters(query: string, which: "A" | "B") {
     if (query.length < 2) {
       which === "A" ? setResultsA([]) : setResultsB([]);
+      which === "A" ? setLoadingA(false) : setLoadingB(false);
       return;
     }
 
@@ -45,6 +48,7 @@ export default function App() {
     if (which === "A") {
       lastSearchIdA.current += 1;
       const thisId = lastSearchIdA.current;
+      setLoadingA(true);
       try {
         const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
@@ -53,12 +57,15 @@ export default function App() {
           setResultsA(data.results);
         }
       } catch (e) {
-        // Ignore errors for aborted/out-of-order fetches; otherwise log
         console.error("searchFighters A error:", e);
+      } finally {
+        // only stop loading if this is the latest request
+        if (thisId === lastSearchIdA.current) setLoadingA(false);
       }
     } else {
       lastSearchIdB.current += 1;
       const thisId = lastSearchIdB.current;
+      setLoadingB(true);
       try {
         const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
@@ -67,6 +74,8 @@ export default function App() {
         }
       } catch (e) {
         console.error("searchFighters B error:", e);
+      } finally {
+        if (thisId === lastSearchIdB.current) setLoadingB(false);
       }
     }
   }
@@ -76,10 +85,12 @@ export default function App() {
       setFighterA(fighter);
       setQueryA(fighter.name);
       setResultsA([]);
+      setLoadingA(false);
     } else {
       setFighterB(fighter);
       setQueryB(fighter.name);
       setResultsB([]);
+      setLoadingB(false);
     }
   }
 
@@ -140,6 +151,9 @@ export default function App() {
               searchFighters(e.target.value, "A");
             }}
           />
+          {loadingA && (
+            <div className="absolute right-3 top-9 text-xs text-gray-400">Loading...</div>
+          )}
           {resultsA.length > 0 && (
             <ul className="absolute z-10 w-full bg-gray-900 border border-gray-700 rounded-lg mt-1 max-h-48 overflow-y-auto">
               {resultsA.map(f => (
@@ -168,6 +182,9 @@ export default function App() {
               searchFighters(e.target.value, "B");
             }}
           />
+          {loadingB && (
+            <div className="absolute right-3 top-9 text-xs text-gray-400">Loading...</div>
+          )}
           {resultsB.length > 0 && (
             <ul className="absolute z-10 w-full bg-gray-900 border border-gray-700 rounded-lg mt-1 max-h-48 overflow-y-auto">
               {resultsB.map(f => (
