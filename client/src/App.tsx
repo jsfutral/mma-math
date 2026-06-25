@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://pb9cf8akad.execute-api.us-east-1.amazonaws.com/prod";
 
@@ -30,6 +30,9 @@ export default function App() {
   const [chain, setChain] = useState<ChainResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Per-input monotonic IDs to ignore out-of-order responses
+  const lastSearchIdA = useRef(0);
+  const lastSearchIdB = useRef(0);
 
   async function searchFighters(query: string, which: "A" | "B") {
     if (query.length < 2) {
@@ -37,9 +40,35 @@ export default function App() {
       return;
     }
 
-    const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`);
-    const data = await res.json();
-    which === "A" ? setResultsA(data.results) : setResultsB(data.results);
+    // Use per-input monotonic IDs to ignore out-of-order responses.
+    // Increment the appropriate counter and capture the id for this request.
+    if (which === "A") {
+      lastSearchIdA.current += 1;
+      const thisId = lastSearchIdA.current;
+      try {
+        const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        // Only apply results if this is the most recent request for this input
+        if (thisId === lastSearchIdA.current) {
+          setResultsA(data.results);
+        }
+      } catch (e) {
+        // Ignore errors for aborted/out-of-order fetches; otherwise log
+        console.error("searchFighters A error:", e);
+      }
+    } else {
+      lastSearchIdB.current += 1;
+      const thisId = lastSearchIdB.current;
+      try {
+        const res = await fetch(`${API_URL}/fighters/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (thisId === lastSearchIdB.current) {
+          setResultsB(data.results);
+        }
+      } catch (e) {
+        console.error("searchFighters B error:", e);
+      }
+    }
   }
 
   function selectFighter(fighter: Fighter, which: "A" | "B") {
