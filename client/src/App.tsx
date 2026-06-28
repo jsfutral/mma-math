@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://pb9cf8akad.execute-api.us-east-1.amazonaws.com/prod";
 
@@ -32,6 +32,8 @@ export default function App() {
   const [chain, setChain] = useState<ChainResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const helpRef = useRef<HTMLDivElement | null>(null);
   // Per-input monotonic IDs to ignore out-of-order responses
   const lastSearchIdA = useRef(0);
   const lastSearchIdB = useRef(0);
@@ -154,17 +156,84 @@ export default function App() {
     setError(null);
   }
 
+  useEffect(() => {
+    if (!showHelp) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (helpRef.current && !helpRef.current.contains(event.target as Node)) {
+        setShowHelp(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowHelp(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showHelp]);
+
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center px-4 py-12">
       
       {/* Header */}
       <div className="mb-10 text-center">
-        <h1 className="text-5xl font-black tracking-tight text-white mb-2">
-          TI-<span className="text-red-500">MM84</span>
-        </h1>
+        <div className="inline-flex items-center justify-center gap-3">
+          <h1 className="text-5xl font-black tracking-tight text-white mb-2">
+            TI-<span className="text-red-500">MM84</span>
+          </h1>
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800 hover:text-white transition"
+            aria-label="Show help"
+            aria-expanded={showHelp}
+            onClick={() => setShowHelp(prev => !prev)}
+          >
+            <span className="text-lg font-bold">?</span>
+          </button>
+        </div>
         <p className="text-gray-400 text-sm">
           MMA Math Calculator - Does fighter A beat fighter B?
         </p>
+
+        {showHelp && (
+          <div
+            ref={helpRef}
+            className="fixed left-1/2 top-28 z-50 w-[min(360px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-gray-700 bg-gray-900 p-5 text-left text-sm shadow-2xl shadow-black/60"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-white mb-2">What is MMA math?</p>
+                <p className="text-gray-300">
+                  MMA math is the idea that if Fighter A beat Fighter B, and Fighter B beat Fighter C, then Fighter A should be able to beat Fighter C. 
+                  Fans use it to predict fights all the time, yet time and time again, MMA math gets it completely wrong. 
+                  <br/><br/>
+                  TI-MM84 takes this concept to the extreme - using Sherdog's fight results, we have scraped every fighter's wins and losses 
+                  to map out the entire web of MMA results. Enter any two fighters and we'll find the shortest chain of victories (if one exists)
+                  that connects them.
+                  <br/><br/>
+                  Whether you're a fighter yourself looking for your path to victory against Jon Jones, or a fan looking to see if your 
+                  favorite fighter can become the champ, TI-MM84 is here to help you find the answer.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHelp(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition"
+                aria-label="Close help"
+              >
+                x
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search inputs */}
@@ -181,6 +250,8 @@ export default function App() {
               setQueryA(e.target.value);
               setFighterA(null);
               searchFighters(e.target.value, "A");
+              setChain(null);
+              setError(null);
             }}
           />
           {loadingA && (
@@ -201,6 +272,7 @@ export default function App() {
           )}
         </div>
 
+        {/* swap button */}
         <div className="flex items-center justify-center">
           <button
             className="inline-flex items-center justify-center rounded-full border border-gray-700 bg-gray-900 px-4 py-2 text-xs uppercase tracking-[0.25em] text-gray-300 hover:border-gray-500 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -223,6 +295,8 @@ export default function App() {
               setQueryB(e.target.value);
               setFighterB(null);
               searchFighters(e.target.value, "B");
+              setChain(null);
+              setError(null);
             }}
           />
           {loadingB && (
@@ -244,13 +318,15 @@ export default function App() {
         </div>
 
         {/* Find Chain button */}
-        <button
-          className="w-full bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition rounded-lg py-3 font-bold tracking-wide"
-          onClick={findChain}
-          disabled={!fighterA || !fighterB || loading}
-        >
-          {loading ? "Calculating..." : "Find Chain"}
-        </button>
+        <div className="flex items-center justify-center">
+          <button
+            className="w-1/3 items-center justify-center bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition rounded-lg py-3 font-bold tracking-wide"
+            onClick={findChain}
+            disabled={!fighterA || !fighterB || loading}
+          >
+            {loading ? "Calculating..." : "Calculate"}
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -262,9 +338,12 @@ export default function App() {
 
       {/* Chain result */}
       {chain && (
-        <div className="w-full max-w-xl">
+        <div id="results" className="w-full max-w-xl">
           {chain.found ? (
             <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
+              <p className="text-white-400 uppercase tracking-widest mb-4">
+                {queryA} <b>Beats</b> {queryB}:
+              </p>
               <p className="text-xs text-gray-400 uppercase tracking-widest mb-4">
                 Chain found — {chain.chain.length} step{chain.chain.length !== 1 ? "s" : ""}
               </p>
@@ -285,12 +364,14 @@ export default function App() {
           )}
 
           {/* Reset button */}
-          <button
-            className="w-full mt-4 border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white transition rounded-lg py-3 text-sm"
-            onClick={reset}
-          >
-            Try another search
-          </button>
+          <div className="flex items-center justify-center">
+            <button
+              className="w-1/3 items-center justify-center mt-4 border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white transition rounded-lg py-3 text-sm"
+              onClick={reset}
+            >
+              Reset
+            </button>
+          </div>
         </div>
       )}
     </div>
