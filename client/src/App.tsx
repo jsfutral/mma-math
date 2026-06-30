@@ -342,7 +342,7 @@ export default function App() {
         <div id="results" className="w-full max-w-xl">
           {chain.found ? (
             <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-              <p className="text-white-400 uppercase tracking-widest mb-4">
+              <p className="text-white uppercase tracking-widest mb-4">
                 {fighterA?.name} <b>Beats</b> {fighterB?.name}:
               </p>
               <p className="text-xs text-gray-400 uppercase tracking-widest mb-4">
@@ -360,6 +360,9 @@ export default function App() {
             </div>
           ) : (
             <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 text-center text-gray-400">
+              <p className="text-lg text-white uppercase tracking-widest mb-4">
+                <b>Undefined</b>
+              </p>              
               {chain.message || "No chain found between these fighters."}
             </div>
           )}
