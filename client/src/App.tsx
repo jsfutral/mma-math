@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { FeedbackButton } from "./Feedback";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://pb9cf8akad.execute-api.us-east-1.amazonaws.com/prod";
 
@@ -342,7 +343,7 @@ export default function App() {
           {chain.found ? (
             <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
               <p className="text-white-400 uppercase tracking-widest mb-4">
-                {queryA} <b>Beats</b> {queryB}:
+                {fighterA?.name} <b>Beats</b> {fighterB?.name}:
               </p>
               <p className="text-xs text-gray-400 uppercase tracking-widest mb-4">
                 Chain found — {chain.chain.length} step{chain.chain.length !== 1 ? "s" : ""}
@@ -374,6 +375,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <FeedbackButton />
     </div>
   );
 }

@@ -12,6 +12,8 @@ import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 
 export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -311,5 +313,45 @@ export class InfraStack extends cdk.Stack {
       value: siteBucket.bucketName,
       description: 'S3 bucket for frontend deployment',
     });
+
+    // -----------------------------------------------
+    // Feedback feature - DynamoDB table, SNS topic, and Lambda function
+    // -----------------------------------------------
+    const feedbackTable = new dynamodb.Table(this, 'FeedbackTable', {
+      tableName: 'feedback',
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    const feedbackTopic = new sns.Topic(this, 'FeedbackTopic', {
+      topicName: 'feedback-notifications',
+    });
+    feedbackTopic.addSubscription(
+      new subscriptions.EmailSubscription('jonathanfutral@gmail.com')
+    );
+
+    const feedbackFn = new nodejs.NodejsFunction(this, 'FeedbackLambda', {
+      functionName: 'mma-math-feedback',
+      entry: '../server/src/handlers/feedback.ts',
+      handler: 'handler',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      projectRoot: '../',
+      depsLockFilePath: '../server/package-lock.json',
+      environment: {
+        FEEDBACK_TABLE: feedbackTable.tableName,
+        TOPIC_ARN: feedbackTopic.topicArn,
+      },
+    });
+
+    feedbackTable.grantWriteData(feedbackFn);
+    feedbackTopic.grantPublish(feedbackFn);
+
+    const feedbackResource = api.root.addResource('feedback');
+    feedbackResource.addMethod('POST', new apigateway.LambdaIntegration(feedbackFn));
+
   }
 }
